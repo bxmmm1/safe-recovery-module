@@ -60,7 +60,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         // subscription for 1 year
         uint256 subscriptionAmount = recovery.getYearlySubscription();
         // Transfer some eth to safe
-        (bool s,) = address(safe).call{ value: 10 ether}("");
+        (bool s,) = address(safe).call{value: 10 ether}("");
         require(s, "transfer failed");
 
         address recoveryAddress = address(1337);

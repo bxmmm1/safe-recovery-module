@@ -2,9 +2,9 @@
 pragma solidity 0.8.17;
 
 import {IRecovery} from "./IRecovery.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Recovery is IRecovery {
-
+contract Recovery is IRecovery, Ownable {
     // Yearly subscription amount
     // This amount is related to SMS / Email notification
     // If the user subscribed for 1 year, and 1 year passes
@@ -47,14 +47,22 @@ contract Recovery is IRecovery {
     }
 
     /// @inheritdoc IRecovery
-    function getYearlySubscription() external view returns(uint256) {
+    function getYearlySubscription() external view returns (uint256) {
         return _yearlySubscription;
     }
 
-    /// @inheritdoc IRecovery
-    function setYearlySubscription(uint256 amount) external {
-        // TODO: auth
+    /// @notice Sets yearly subscription amount data
+    /// @param amount in wei
+    function setYearlySubscription(uint256 amount) external onlyOwner {
         _yearlySubscription = amount;
-        emit YearlySubscrioptionChanged(amount);
+        emit YearlySubscriptionChanged(amount);
+    }
+
+    /// @notice Withdraws eth from the contract
+    /// @param amount to withdraw
+    /// @param to address
+    function withdrawFunds(uint256 amount, address to) external onlyOwner {
+        (bool success,) = to.call{value: amount}("");
+        require(success);
     }
 }

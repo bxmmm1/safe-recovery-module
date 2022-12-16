@@ -4,10 +4,21 @@ pragma solidity >=0.7.0 <0.9.0;
 /// @title IRecovery interface
 /// @author Benjamin H - <benjaminxh@gmail.com>
 interface IRecovery {
+    /// @notice Emitted when the safe owner adds recovery data
+    /// @param safe is the address of a safe
+    /// @param recoveryAddress is the address to which safe ownership will eventually be transfered
+    /// @param recoveryDate is the recovery date timestamp (in seconds) that marks the start transfer ownership
     event RecoveryAddressAdded(address indexed safe, address indexed recoveryAddress, uint64 recoveryDate);
+
+    /// @notice Emitted when the safe owner clears his recovery data
+    /// @param safe is the address of a safe
     event RecoveryDataCleared(address indexed safe);
-    event YearlySubscrioptionChanged(uint256 amount);
-    
+
+    /// @notice Emitted when the owner changes yearly subscription amount
+    /// @param amount is the new yearly subscription amount in wei
+    event YearlySubscriptionChanged(uint256 amount);
+
+    /// @notice Thrown when amount is not enough for a desired subscription
     error InsufficientPayment();
 
     /// @notice Adds recovery address and a recovery date
@@ -19,10 +30,6 @@ interface IRecovery {
     /// @notice Clears recovery data
     /// Safe is expected to be a caller
     function clearRecoveryData() external;
-
-    /// @notice Sets yearly subscription amount data
-    /// @param amount in wei
-    function setYearlySubscription(uint256 amount) external;
 
     /// @notice Returns recovery address for a `safe`
     /// @param safe is the address of the safe

@@ -34,7 +34,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         recovery = new Recovery();
 
         // Deploy module
-        module = new RecoveryModule(address(recovery));
+        module = new RecoveryModule(address(recovery), 10 days);
 
         // Enable module on Safe
         // This assumes that threshold for safe will be 1, and that this contract is one of the safe owners

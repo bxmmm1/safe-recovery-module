@@ -10,7 +10,7 @@ import {IRecoveryModule} from "./IRecoveryModule.sol";
 /// @author Benjamin H - <benjaminxh@gmail.com>
 contract RecoveryModule is IRecoveryModule {
     // Timelock period for ownership transfer
-    uint256 private constant _timeLock = 10 days;
+    uint256 private immutable _timeLock;
 
     // Recovery Registry
     Recovery public immutable recovery;
@@ -18,8 +18,9 @@ contract RecoveryModule is IRecoveryModule {
     // Safe address -> timelockExpiration timestamp
     mapping(address => uint256) private _recovery;
 
-    constructor(address recoveryAddress) {
+    constructor(address recoveryAddress, uint256 timeLock) {
         recovery = Recovery(recoveryAddress);
+        _timeLock = timeLock;
     }
 
     /// @inheritdoc IRecoveryModule
@@ -56,6 +57,10 @@ contract RecoveryModule is IRecoveryModule {
 
     /// @inheritdoc IRecoveryModule
     function initiateTransferOwnership(address safe) external {
+        if (_recovery[safe] != 0) {
+            revert TransferOwnershipAlreadyInitiated();
+        }
+        
         if (block.timestamp < recovery.getRecoveryDate(safe)) {
             revert TooEarly();
         }
@@ -79,5 +84,9 @@ contract RecoveryModule is IRecoveryModule {
     /// @inheritdoc IRecoveryModule
     function getTimelockExpiration(address safe) public view returns (uint256) {
         return _recovery[safe];
+    }
+
+    function getTimelock() external view returns(uint256) {
+        return _timeLock;
     }
 }

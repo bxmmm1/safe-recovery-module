@@ -15,6 +15,9 @@ interface IRecoveryModule {
     /// @notice Thrown when the Safe transaction failed
     error TransactionFailed();
 
+    /// @notice Transfer ownership is already initiated
+    error TransferOwnershipAlreadyInitiated();
+
     /// @notice Emitted when the transfer ownership is initiated
     /// @param safe is the safe address
     /// @param timeLockExpiration is the timestamp (seconds) when the timelock expires

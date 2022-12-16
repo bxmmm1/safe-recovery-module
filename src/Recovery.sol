@@ -22,7 +22,9 @@ contract Recovery is IRecovery, Ownable {
 
     /// @inheritdoc IRecovery
     function addRecovery(address recoveryAddress, uint64 recoveryDate) external payable {
-        if (msg.value == (recoveryDate / 365 days * _yearlySubscription)) {
+        uint256 amount = _calculatePaymentAmount(recoveryDate, _yearlySubscription);
+
+        if (msg.value != amount) {
             revert InsufficientPayment();
         }
 
@@ -64,5 +66,15 @@ contract Recovery is IRecovery, Ownable {
     function withdrawFunds(uint256 amount, address to) external onlyOwner {
         (bool success,) = to.call{value: amount}("");
         require(success);
+    }
+
+    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee) private view returns(uint256) {
+        uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
+
+        if (yearsOfSubscription == 0) {
+            return yearlyFee;
+        }
+
+        return yearsOfSubscription * yearlyFee;
     }
 }

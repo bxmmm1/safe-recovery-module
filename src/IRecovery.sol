@@ -21,6 +21,9 @@ interface IRecovery {
     /// @notice Thrown when amount is not enough for a desired subscription
     error InsufficientPayment();
 
+    /// @notice Thrown when the recovery date is not valid
+    error InvalidRecoveryDate();
+
     /// @notice Adds recovery address and a recovery date
     /// Safe is expected to be a caller
     /// @param recoveryAddress is an address to which safe ownership will be transfered

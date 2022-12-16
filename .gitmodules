@@ -6,3 +6,6 @@
 	path = lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
 	branch = v1.3.0
+[submodule "lib/solmate"]
+	path = lib/solmate
+	url = https://github.com/transmissions11/solmate

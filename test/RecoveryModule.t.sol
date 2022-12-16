@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import "forge-std/console2.sol";
 import "forge-std/Test.sol";
 import "safe-contracts/GnosisSafe.sol";
 import "safe-contracts/common/Enum.sol";
@@ -56,13 +57,19 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     function _initiateTransferOwnership() private {
         assert(recovery.getRecoveryAddress(address(safe)) == address(0));
 
+        // subscription for 1 year
+        uint256 subscriptionAmount = recovery.getYearlySubscription();
+        // Transfer some eth to safe
+        (bool s,) = address(safe).call{ value: 10 ether}("");
+        require(s, "transfer failed");
+
         address recoveryAddress = address(1337);
-        uint256 recoveryDate = block.timestamp + 365 days;
+        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
 
         // Add recovery address
         bool success = safe.execTransaction({
             to: address(recovery),
-            value: 0,
+            value: subscriptionAmount,
             data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate)),
             operation: Enum.Operation.Call,
             safeTxGas: 0,

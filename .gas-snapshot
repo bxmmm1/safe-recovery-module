@@ -1,3 +1,3 @@
-RecoveryModuleTest:testCancelTransferOwnership() (gas: 122190)
-RecoveryModuleTest:testFinalizeTransferOwnership() (gas: 199913)
-RecoveryModuleTest:testInitiateTransferOwnership() (gas: 129134)
+RecoveryModuleTest:testCancelTransferOwnership() (gas: 122283)
+RecoveryModuleTest:testFinalizeTransferOwnership() (gas: 200029)
+RecoveryModuleTest:testInitiateTransferOwnership() (gas: 129227)

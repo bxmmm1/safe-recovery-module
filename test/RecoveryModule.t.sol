@@ -17,6 +17,8 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     GnosisSafe public safe;
     Recovery public recovery;
 
+    uint256 private _timelock = 10 days;
+
     bytes private _validSignature = bytes(
         hex"0000000000000000000000007FA9385bE102ac3EAc297483Dd6233D62b3e14960000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
     );
@@ -34,7 +36,11 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         recovery = new Recovery();
 
         // Deploy module
-        module = new RecoveryModule(address(recovery), 10 days);
+        module = new RecoveryModule(address(recovery), _timelock);
+
+        // Transfer some eth to safe
+        (bool s,) = address(safe).call{value: 10 ether}("");
+        require(s, "transfer failed");
 
         // Enable module on Safe
         // This assumes that threshold for safe will be 1, and that this contract is one of the safe owners
@@ -54,17 +60,8 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         assert(safe.isModuleEnabled(address(module)) == true);
     }
 
-    function _initiateTransferOwnership() private {
-        assert(recovery.getRecoveryAddress(address(safe)) == address(0));
-
-        // subscription for 1 year
+    function _addRecovery(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
         uint256 subscriptionAmount = recovery.getYearlySubscription();
-        // Transfer some eth to safe
-        (bool s,) = address(safe).call{value: 10 ether}("");
-        require(s, "transfer failed");
-
-        address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
 
         // Add recovery address
         bool success = safe.execTransaction({
@@ -79,6 +76,18 @@ contract RecoveryModuleTest is SafeDeployer, Test {
             refundReceiver: payable(address(0)),
             signatures: _validSignature
         });
+
+        return success;
+    }
+
+    function _initiateTransferOwnership() private {
+        assert(recovery.getRecoveryAddress(address(safe)) == address(0));
+
+        address recoveryAddress = address(1337);
+        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+
+        // subscription for 1 year
+        bool success = _addRecovery(recoveryAddress, recoveryDate);
 
         require(success, "tx failed");
 
@@ -123,6 +132,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         assert(module.getTimelockExpiration(address(safe)) == 0);
     }
 
+    /// Finalize transfer ownership should work
     function testFinalizeTransferOwnership() external {
         _initiateTransferOwnership();
 
@@ -136,5 +146,97 @@ contract RecoveryModuleTest is SafeDeployer, Test {
 
         // 1 owner after
         assert(safe.getOwners().length == 1);
+    }
+
+    function testGetTimelock() external view {
+        assert(module.getTimelock() == _timelock);
+    }
+
+    function testFailFinalizeOwnership() external {
+        module.finalizeTransferOwnership(address(safe));
+    }
+
+    // If we did not initialize transfer ownership, and we try to finalize
+    // it should revert
+    function testFinalizeTransferOwnershipShouldRevert() external {
+        vm.expectRevert(IRecoveryModule.InvalidAddress.selector);
+        module.finalizeTransferOwnership(address(safe));
+    }
+
+    function testInitiateTransferOwnershipShouldRevertWithInvalidAddress() external {
+        vm.expectRevert(IRecoveryModule.InvalidAddress.selector);
+        module.initiateTransferOwnership(address(safe));
+    }
+
+    function testInitiateTransferOwnershipTooEarlyShouldRevert() external {
+        address recoveryAddress = address(1337);
+        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+
+        _addRecovery(recoveryAddress, recoveryDate);
+
+        vm.expectRevert(IRecoveryModule.TooEarly.selector);
+        module.initiateTransferOwnership(address(safe));
+    }
+
+    function testInitiateFinalizeTooEarlyShouldRevert() external {
+        address recoveryAddress = address(1337);
+        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+
+        _addRecovery(recoveryAddress, recoveryDate);
+
+        vm.warp(recoveryDate);
+
+        // Initiate transfer ownership
+        module.initiateTransferOwnership(address(safe));
+
+        // Try to finalize right away
+        vm.expectRevert(IRecoveryModule.TooEarly.selector);
+        module.finalizeTransferOwnership(address(safe));
+    }
+
+    function testInitiateTransferOwnershipShouldRevertWithAlreadyInitiated() external {
+        _initiateTransferOwnership();
+        vm.expectRevert(IRecoveryModule.TransferOwnershipAlreadyInitiated.selector);
+        module.initiateTransferOwnership(address(safe));
+    }
+
+    function testDplicateAddRecoveryShouldWork() external {
+        // subscription for 1 year
+        uint256 subscriptionAmount = recovery.getYearlySubscription();
+
+        address recoveryAddress = address(1337);
+        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+
+        // Add recovery address
+        bool success = safe.execTransaction({
+            to: address(recovery),
+            value: subscriptionAmount,
+            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate)),
+            operation: Enum.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: _validSignature
+        });
+
+        assert(success == true);
+
+        // Add recovery address
+        success = safe.execTransaction({
+            to: address(recovery),
+            value: subscriptionAmount,
+            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate)),
+            operation: Enum.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: _validSignature
+        });
+
+        assert(success == true);
     }
 }

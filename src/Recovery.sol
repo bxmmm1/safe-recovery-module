@@ -25,7 +25,7 @@ contract Recovery is IRecovery, Ownable {
         uint256 amount = _calculatePaymentAmount(recoveryDate, _yearlySubscription);
 
         if (msg.value != amount) {
-            revert InsufficientPayment();
+            revert InvalidPayment(amount);
         }
 
         _recovery[msg.sender] = RecoveryData({recoveryAddress: recoveryAddress, recoveryDate: recoveryDate});
@@ -68,13 +68,9 @@ contract Recovery is IRecovery, Ownable {
         require(success);
     }
 
-    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee) private view returns(uint256) {
+    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee) private view returns (uint256) {
         uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
-
-        if (yearsOfSubscription == 0) {
-            return yearlyFee;
-        }
-
-        return yearsOfSubscription * yearlyFee;
+        // +1 is because of solidity's rounding
+        return (yearsOfSubscription + 1) * yearlyFee;
     }
 }

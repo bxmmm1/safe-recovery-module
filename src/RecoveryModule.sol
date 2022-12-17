@@ -34,6 +34,8 @@ contract RecoveryModule is IRecoveryModule {
             revert InvalidAddress();
         }
 
+        recovery.clearRecoveryData();
+
         GnosisSafe safe = GnosisSafe(payable(safeAddress));
         address[] memory owners = safe.getOwners();
 
@@ -57,10 +59,11 @@ contract RecoveryModule is IRecoveryModule {
 
     /// @inheritdoc IRecoveryModule
     function initiateTransferOwnership(address safe) external {
+        // This is done to prevent somebody from extending timeLockExpiration value
         if (_recovery[safe] != 0) {
             revert TransferOwnershipAlreadyInitiated();
         }
-        
+
         if (block.timestamp < recovery.getRecoveryDate(safe)) {
             revert TooEarly();
         }
@@ -86,7 +89,8 @@ contract RecoveryModule is IRecoveryModule {
         return _recovery[safe];
     }
 
-    function getTimelock() external view returns(uint256) {
+    /// @inheritdoc IRecoveryModule
+    function getTimelock() external view returns (uint256) {
         return _timeLock;
     }
 }

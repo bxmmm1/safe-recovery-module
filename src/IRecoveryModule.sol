@@ -7,15 +7,19 @@ import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
 /// @author Benjamin H - <benjaminxh@gmail.com>
 interface IRecoveryModule {
     /// @notice Thrown when the current time is lower than `timeLockExpiration`
+    /// Selector 0x085de625
     error TooEarly();
 
     /// @notice Thrown when the address is address(0)
+    /// Selector 0xe6c4247b
     error InvalidAddress();
 
     /// @notice Thrown when the Safe transaction failed
+    /// Selector 0xbf961a28
     error TransactionFailed();
 
     /// @notice Transfer ownership is already initiated
+    /// Selector 0x77fcbe52
     error TransferOwnershipAlreadyInitiated();
 
     /// @notice Emitted when the transfer ownership is initiated
@@ -42,4 +46,8 @@ interface IRecoveryModule {
     /// @param safe is the safe address
     /// @return timestamp in seconds
     function getTimelockExpiration(address safe) external view returns (uint256);
+
+    /// @notice Returns the timelock expiration
+    /// @return timestamp duration in seconds
+    function getTimelock() external view returns (uint256);
 }

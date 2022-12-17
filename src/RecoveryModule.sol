@@ -13,13 +13,13 @@ contract RecoveryModule is IRecoveryModule {
     uint256 private immutable _timeLock;
 
     // Recovery Registry
-    Recovery public immutable recovery;
+    Recovery public immutable recoveryRegistry;
 
     // Safe address -> timelockExpiration timestamp
     mapping(address => uint256) private _recovery;
 
     constructor(address recoveryAddress, uint256 timeLock) {
-        recovery = Recovery(recoveryAddress);
+        recoveryRegistry = Recovery(recoveryAddress);
         _timeLock = timeLock;
     }
 
@@ -29,21 +29,24 @@ contract RecoveryModule is IRecoveryModule {
             revert TooEarly();
         }
 
-        address newOwner = recovery.getRecoveryAddress(safeAddress);
+        address newOwner = recoveryRegistry.getRecoveryAddress(safeAddress);
         if (newOwner == address(0)) {
             revert InvalidAddress();
         }
 
-        recovery.clearRecoveryData();
+        recoveryRegistry.clearRecoveryData();
 
         GnosisSafe safe = GnosisSafe(payable(safeAddress));
         address[] memory owners = safe.getOwners();
 
         // start removing from the last owner, untill the last one is left
         for (uint256 i = (owners.length - 1); i > 0; --i) {
-            // changes threshold to 1 so the safe becomes 1/1 for a new owner
+            // changes threshold to 1 so the safe becomes 1/1 for the new owner
             bytes memory callData = abi.encodeCall(OwnerManager.removeOwner, (owners[i - 1], owners[i], 1));
-            safe.execTransactionFromModule({to: address(safe), value: 0, data: callData, operation: Enum.Operation.Call});
+            bool success = safe.execTransactionFromModule({to: address(safe), value: 0, data: callData, operation: Enum.Operation.Call});
+            if (!success) {
+                revert TransactionFailed();
+            }
         }
 
         // Swap the last owner with the new newOwner
@@ -64,11 +67,11 @@ contract RecoveryModule is IRecoveryModule {
             revert TransferOwnershipAlreadyInitiated();
         }
 
-        if (block.timestamp < recovery.getRecoveryDate(safe)) {
+        if (block.timestamp < recoveryRegistry.getRecoveryDate(safe)) {
             revert TooEarly();
         }
 
-        if (recovery.getRecoveryAddress(safe) == address(0)) {
+        if (recoveryRegistry.getRecoveryAddress(safe) == address(0)) {
             revert InvalidAddress();
         }
 

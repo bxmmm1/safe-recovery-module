@@ -3,12 +3,14 @@ pragma solidity 0.8.17;
 
 import {Enum} from "safe-contracts/common/Enum.sol";
 import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
+import {Guard} from "safe-contracts/base/GuardManager.sol";
 import {OwnerManager} from "safe-contracts/base/OwnerManager.sol";
 import {Recovery} from "./Recovery.sol";
+import {IRecovery} from "./IRecovery.sol";
 import {IRecoveryModule} from "./IRecoveryModule.sol";
 
 /// @author Benjamin H - <benjaminxh@gmail.com>
-contract RecoveryModule is IRecoveryModule {
+contract RecoveryModule is IRecoveryModule, Guard {
     // Timelock period for ownership transfer
     uint256 private immutable _timeLock;
 
@@ -25,13 +27,22 @@ contract RecoveryModule is IRecoveryModule {
 
     /// @inheritdoc IRecoveryModule
     function finalizeTransferOwnership(address safeAddress) external {
-        if (block.timestamp < getTimelockExpiration(safeAddress)) {
-            revert TooEarly();
-        }
-
         address newOwner = recoveryRegistry.getRecoveryAddress(safeAddress);
         if (newOwner == address(0)) {
             revert InvalidAddress();
+        }
+
+        IRecovery.RecoveryType recoveryType = recoveryRegistry.getRecoveryType(safeAddress);
+
+        if (recoveryType == IRecovery.RecoveryType.InactiveFor) {
+            _ensureSafeIsInactive(safeAddress);
+        } else {
+            _ensureRecoveryDateHasPassed(safeAddress);
+
+            // Make sure that timelock has passed
+            if (block.timestamp < getTimelockExpiration(safeAddress)) {
+                revert TooEarly();
+            }
         }
 
         recoveryRegistry.clearRecoveryData();
@@ -43,7 +54,12 @@ contract RecoveryModule is IRecoveryModule {
         for (uint256 i = (owners.length - 1); i > 0; --i) {
             // changes threshold to 1 so the safe becomes 1/1 for the new owner
             bytes memory callData = abi.encodeCall(OwnerManager.removeOwner, (owners[i - 1], owners[i], 1));
-            bool success = safe.execTransactionFromModule({to: address(safe), value: 0, data: callData, operation: Enum.Operation.Call});
+            bool success = safe.execTransactionFromModule({
+                to: address(safe),
+                value: 0,
+                data: callData,
+                operation: Enum.Operation.Call
+            });
             if (!success) {
                 revert TransactionFailed();
             }
@@ -67,8 +83,12 @@ contract RecoveryModule is IRecoveryModule {
             revert TransferOwnershipAlreadyInitiated();
         }
 
-        if (block.timestamp < recoveryRegistry.getRecoveryDate(safe)) {
-            revert TooEarly();
+        IRecovery.RecoveryType recoveryType = recoveryRegistry.getRecoveryType(safe);
+
+        if (recoveryType == IRecovery.RecoveryType.InactiveFor) {
+            _ensureSafeIsInactive(safe);
+        } else {
+            _ensureRecoveryDateHasPassed(safe);
         }
 
         if (recoveryRegistry.getRecoveryAddress(safe) == address(0)) {
@@ -95,5 +115,39 @@ contract RecoveryModule is IRecoveryModule {
     /// @inheritdoc IRecoveryModule
     function getTimelock() external view returns (uint256) {
         return _timeLock;
+    }
+
+    function checkTransaction(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures,
+        address msgSender
+    ) external {
+        // do nothing, required by `Guard` interface
+    }
+
+    // Required by `Guard` interface
+    function checkAfterExecution(bytes32, bool) external {
+        recoveryRegistry.updateLastActivity(msg.sender);
+    }
+
+    function _ensureSafeIsInactive(address safe) private view {
+        // Recovery date represents for how long the safe must be inactive to not revert
+        if (block.timestamp - recoveryRegistry.getLastActivity(safe) < recoveryRegistry.getRecoveryDate(safe)) {
+            revert TooEarly();
+        }
+    }
+
+    function _ensureRecoveryDateHasPassed(address safe) private view {
+        if (block.timestamp < recoveryRegistry.getRecoveryDate(safe)) {
+            revert TooEarly();
+        }
     }
 }

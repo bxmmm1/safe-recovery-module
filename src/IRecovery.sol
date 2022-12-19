@@ -4,6 +4,11 @@ pragma solidity >=0.7.0 <0.9.0;
 /// @title IRecovery interface
 /// @author Benjamin H - <benjaminxh@gmail.com>
 interface IRecovery {
+    enum RecoveryType {
+        After,
+        InactiveFor
+    }
+
     /// @notice Thrown when amount is not enough for a desired subscription
     /// @param amountYouShouldPay amount you should pay for this subscription
     /// Selector 0x0e2e0926
@@ -13,11 +18,24 @@ interface IRecovery {
     /// Selector 0x0ecc12af
     error InvalidRecoveryDate();
 
+    /// @notice Thrown when the caller is unauthorized
+    /// Selector 0x82b42900
+    error Unauthorized();
+
     /// @notice Emitted when the safe owner adds recovery data
     /// @param safe is the address of a safe
     /// @param recoveryAddress is the address to which safe ownership will eventually be transfered
     /// @param recoveryDate is the recovery date timestamp (in seconds) that marks the start transfer ownership
-    event RecoveryAddressAdded(address indexed safe, address indexed recoveryAddress, uint64 recoveryDate);
+    /// @param recoveryType is the recovery type 
+    event RecoveryAddressAdded(address indexed safe, address indexed recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType);
+
+    /// @notice Emitted when the new recovery module is added to registry
+    /// @param module is the address of the new module
+    event RecoveryModuleAdded(address indexed module);
+
+    /// @notice Emitted when the new recovery module is removed from the registry
+    /// @param module is the address of the new module
+    event RecoveryModuleRemoved(address indexed module);
 
     /// @notice Emitted when the safe owner clears his recovery data
     /// @param safe is the address of a safe
@@ -31,11 +49,20 @@ interface IRecovery {
     /// Safe is expected to be a caller
     /// @param recoveryAddress is an address to which safe ownership will be transfered
     /// @param recoveryDate is a timestamp (in seconds) in the future when the recovery process will start
-    function addRecovery(address recoveryAddress, uint64 recoveryDate) external payable;
+    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external payable;
 
     /// @notice Clears recovery data
     /// Safe is expected to be a caller
     function clearRecoveryData() external;
+
+    /// @notice Updates the last activity of a safe
+    /// @param safe is the address of the safe
+    function updateLastActivity(address safe) external;
+
+    /// @notice Gets the last activity of a safe
+    /// @param safe is the address of the safe
+    /// @return last activity timestamp (in seconds)
+    function getLastActivity(address safe) external view returns (uint256);
 
     /// @notice Returns recovery address for a `safe`
     /// @param safe is the address of the safe
@@ -50,4 +77,9 @@ interface IRecovery {
     /// @notice Returns yearly subscription amount in wei
     /// @return amount in wei
     function getYearlySubscription() external view returns (uint256);
+
+    /// @notice Returns if the recovery module is whitelisted
+    /// @param module is the address of the module
+    /// @return bool
+    function isRecoveryModule(address module) external view returns (bool);
 }

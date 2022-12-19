@@ -54,13 +54,13 @@ contract RecoveryModule is IRecoveryModule, Guard {
         for (uint256 i = (owners.length - 1); i > 0; --i) {
             // changes threshold to 1 so the safe becomes 1/1 for the new owner
             bytes memory callData = abi.encodeCall(OwnerManager.removeOwner, (owners[i - 1], owners[i], 1));
-            bool success = safe.execTransactionFromModule({
+            bool s = safe.execTransactionFromModule({
                 to: address(safe),
                 value: 0,
                 data: callData,
                 operation: Enum.Operation.Call
             });
-            if (!success) {
+            if (!s) {
                 revert TransactionFailed();
             }
         }

@@ -3,8 +3,11 @@ pragma solidity 0.8.17;
 
 import {IRecovery} from "./IRecovery.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract Recovery is IRecovery, Ownable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     // Yearly subscription amount
     // This amount is related to SMS / Email notification
     // If the user subscribed for 1 year, and 1 year passes
@@ -13,23 +16,59 @@ contract Recovery is IRecovery, Ownable {
     uint256 private _yearlySubscription = 0.1 ether;
 
     struct RecoveryData {
-        address recoveryAddress; // -- slot 0
-        uint64 recoveryDate; // -- slot 0
+        address recoveryAddress;
+        uint64 recoveryDate;
+        RecoveryType recoveryType;
+        uint256 lastActivity;
     }
 
     // [safe address] -> Recovery data
     mapping(address => RecoveryData) private _recovery;
 
+    EnumerableSet.AddressSet private _recoveryModules;
+
+    modifier onlyRecoveryModule() {
+        if (!_recoveryModules.contains(msg.sender)) {
+            revert Unauthorized();
+        }
+        _;
+    }
+
+    function addRecoveryModule(address module) external onlyOwner {
+        _recoveryModules.add(module);
+        emit RecoveryModuleAdded(module);
+    }
+
+    function removeRecoveryModule(address module) external onlyOwner {
+        _recoveryModules.remove(module);
+        emit RecoveryModuleRemoved(module);
+    }
+
     /// @inheritdoc IRecovery
-    function addRecovery(address recoveryAddress, uint64 recoveryDate) external payable {
-        uint256 amount = _calculatePaymentAmount(recoveryDate, _yearlySubscription);
+    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external payable {
+        uint256 amount = _calculatePaymentAmount(recoveryDate, _yearlySubscription, recoveryType);
 
         if (msg.value != amount) {
             revert InvalidPayment(amount);
         }
 
-        _recovery[msg.sender] = RecoveryData({recoveryAddress: recoveryAddress, recoveryDate: recoveryDate});
-        emit RecoveryAddressAdded(msg.sender, recoveryAddress, recoveryDate);
+        _recovery[msg.sender] = RecoveryData({
+            recoveryAddress: recoveryAddress,
+            recoveryDate: recoveryDate,
+            recoveryType: recoveryType,
+            lastActivity: block.timestamp
+        });
+        emit RecoveryAddressAdded(msg.sender, recoveryAddress, recoveryDate, recoveryType);
+    }
+
+    /// @inheritdoc IRecovery
+    function updateLastActivity(address safe) external onlyRecoveryModule {
+        _recovery[safe].lastActivity = block.timestamp;
+    }
+
+    /// @inheritdoc IRecovery
+    function getLastActivity(address safe) external view returns (uint256) {
+        return _recovery[safe].lastActivity;
     }
 
     /// @inheritdoc IRecovery
@@ -48,9 +87,18 @@ contract Recovery is IRecovery, Ownable {
         return _recovery[safe].recoveryDate;
     }
 
+    function getRecoveryType(address safe) external view returns (RecoveryType) {
+        return _recovery[safe].recoveryType;
+    }
+
     /// @inheritdoc IRecovery
     function getYearlySubscription() external view returns (uint256) {
         return _yearlySubscription;
+    }
+
+    /// @inheritdoc IRecovery
+    function isRecoveryModule(address module) external view returns (bool) {
+        return _recoveryModules.contains(module);
     }
 
     /// @notice Sets yearly subscription amount data
@@ -68,9 +116,15 @@ contract Recovery is IRecovery, Ownable {
         require(success);
     }
 
-    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee) private view returns (uint256) {
-        uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
+    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee, RecoveryType recoveryType) private view returns (uint256) {
+        if (recoveryType == RecoveryType.After) {
+            uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
+            // +1 is because of solidity's rounding
+            return (yearsOfSubscription + 1) * yearlyFee;
+        }
+
         // +1 is because of solidity's rounding
-        return (yearsOfSubscription + 1) * yearlyFee;
+        uint256 monthsOfSubscription = uint256(recoveryDate) / 30 days;
+        return (monthsOfSubscription + 1) * yearlyFee;
     }
 }

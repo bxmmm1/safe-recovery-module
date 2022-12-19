@@ -23,6 +23,8 @@ interface IRecovery {
     error Unauthorized();
 
     /// @notice Thrown when the recovery address iz address(0)
+    /// Or the recovery address is the first owner of safe
+    /// That is not possible with current implementation
     /// Selector 0xa61421a2
     error InvalidRecoveryAddress();
 

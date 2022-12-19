@@ -23,12 +23,16 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         hex"0000000000000000000000007FA9385bE102ac3EAc297483Dd6233D62b3e14960000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
     );
 
+    address owner0 = address(this);
+    address owner1 = address(999);
+    address owner2 = address(888);
+
     function setUp() public {
         // Setup safe owners
         address[] memory owners = new address[](3);
-        owners[0] = address(address(this));
-        owners[1] = address(address(9999));
-        owners[2] = address(address(8888));
+        owners[0] = owner0;
+        owners[1] = owner1;
+        owners[2] = owner2;
 
         // Deploy safe
         safe = super.deploySafe({owners: owners, threshold: 1});
@@ -38,9 +42,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         // Deploy module
         module = new RecoveryModule(address(recovery), _timelock);
 
-        // Transfer some eth to safe
-        (bool s,) = address(safe).call{value: 10 ether}("");
-        require(s, "transfer failed");
+        vm.deal(address(safe), 1 ether);
 
         // Enable module on Safe
         // This assumes that threshold for safe will be 1, and that this contract is one of the safe owners
@@ -284,7 +286,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         assert(success == true);
     }
 
-    function testInactiveFor() external {
+    function testInactiveForShouldWork() external {
         address recoveryAddress = address(1337);
 
         bool success = _addRecoveryInactiveFor(recoveryAddress, 2 days);

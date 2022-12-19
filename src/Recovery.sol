@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import {IRecovery} from "./IRecovery.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
 
 contract Recovery is IRecovery, AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -51,9 +52,7 @@ contract Recovery is IRecovery, AccessControl {
 
     /// @inheritdoc IRecovery
     function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external {
-        if (recoveryAddress == address(0)) {
-            revert InvalidRecoveryAddress();
-        }
+        _validateRecoveryAddress(recoveryAddress);
 
         _recovery[msg.sender] = RecoveryData({
             recoveryAddress: recoveryAddress,
@@ -76,9 +75,7 @@ contract Recovery is IRecovery, AccessControl {
             revert InvalidPayment(amount);
         }
 
-        if (recoveryAddress == address(0)) {
-            revert InvalidRecoveryAddress();
-        }
+        _validateRecoveryAddress(recoveryAddress);
 
         _recovery[msg.sender] = RecoveryData({
             recoveryAddress: recoveryAddress,
@@ -145,7 +142,20 @@ contract Recovery is IRecovery, AccessControl {
         require(success);
     }
 
-    function _calculatePaymentAmount(uint64 recoveryDate, uint256 yearlyFee, RecoveryType recoveryType)
+    function _validateRecoveryAddress(address recoveryAddress) private view {
+        if (recoveryAddress == address(0)) {
+            revert InvalidRecoveryAddress();
+        }
+
+        // Make sure that first owner of safe is not the recovery address
+        address firstOwner = GnosisSafe(payable(msg.sender)).getOwners()[0];
+
+        if (recoveryAddress == firstOwner) {
+            revert InvalidRecoveryAddress();
+        }
+    }
+
+    function _calculatePaymentAmount(uint64 recoveryDate, uint256 subscriptionAmount, RecoveryType recoveryType)
         private
         view
         returns (uint256)
@@ -153,11 +163,11 @@ contract Recovery is IRecovery, AccessControl {
         if (recoveryType == RecoveryType.After) {
             uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
             // +1 is because of solidity's rounding
-            return (yearsOfSubscription + 1) * yearlyFee;
+            return (yearsOfSubscription + 1) * subscriptionAmount;
         }
 
         // +1 is because of solidity's rounding
         uint256 monthsOfSubscription = uint256(recoveryDate) / 30 days;
-        return (monthsOfSubscription + 1) * yearlyFee;
+        return (monthsOfSubscription + 1) * subscriptionAmount;
     }
 }

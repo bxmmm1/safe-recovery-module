@@ -2,19 +2,36 @@
 pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
+import "./helpers/SafeDeployer.sol";
+
 import {IRecovery} from "..//src/IRecovery.sol";
 import {Recovery} from "../src/Recovery.sol";
 
-contract RecoveryModuleTest is Test {
+contract RecoveryModuleTest is SafeDeployer, Test {
     Recovery public recovery;
+    GnosisSafe public safe;
 
     function setUp() public {
         recovery = new Recovery();
+        _deploySafe();
+    }
+
+    function _deploySafe() private {
+        address[] memory owners = new address[](3);
+        owners[0] = address(55);
+        owners[1] = address(56);
+        owners[2] = address(57);
+
+        // Deploy safe
+        safe = super.deploySafe({owners: owners, threshold: 1});
+
+        vm.deal(address(safe), 1 ether);
     }
 
     function testAddRecovery() external {
         uint256 amount = 0.2 ether;
 
+        vm.prank(address(safe));
         recovery.addRecoveryWithSubscription{value: amount}(
             address(1337), uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
         );
@@ -48,11 +65,12 @@ contract RecoveryModuleTest is Test {
         address recoveryAddress = address(1337);
         uint64 recoveryDate = uint64(block.timestamp) + 500 days;
 
+        vm.prank(address(safe));
         recovery.addRecovery(recoveryAddress, recoveryDate, IRecovery.RecoveryType.After);
 
-        assert(recovery.getRecoveryAddress(address(this)) == recoveryAddress);
-        assert(recovery.getRecoveryDate(address(this)) == uint256(recoveryDate));
-        assert(recovery.getRecoveryType(address(this)) == IRecovery.RecoveryType.After);
+        assert(recovery.getRecoveryAddress(address(safe)) == recoveryAddress);
+        assert(recovery.getRecoveryDate(address(safe)) == uint256(recoveryDate));
+        assert(recovery.getRecoveryType(address(safe)) == IRecovery.RecoveryType.After);
     }
 
     function testSubscriptionAmount(uint256 amount) external {

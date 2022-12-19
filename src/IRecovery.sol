@@ -22,12 +22,27 @@ interface IRecovery {
     /// Selector 0x82b42900
     error Unauthorized();
 
+    /// @notice Thrown when the recovery address iz address(0)
+    /// Selector 0xa61421a2
+    error InvalidRecoveryAddress();
+
     /// @notice Emitted when the safe owner adds recovery data
     /// @param safe is the address of a safe
     /// @param recoveryAddress is the address to which safe ownership will eventually be transfered
     /// @param recoveryDate is the recovery date timestamp (in seconds) that marks the start transfer ownership
-    /// @param recoveryType is the recovery type 
-    event RecoveryAddressAdded(address indexed safe, address indexed recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType);
+    /// @param recoveryType is the recovery type
+    event RecoveryAddressAdded(
+        address indexed safe, address indexed recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType
+    );
+
+    /// @notice Emitted when the safe owner adds recovery data with subscription
+    /// @param safe is the address of a safe
+    /// @param recoveryAddress is the address to which safe ownership will eventually be transfered
+    /// @param recoveryDate is the recovery date timestamp (in seconds) that marks the start transfer ownership
+    /// @param recoveryType is the recovery type
+    event RecoveryAddressAddedWithSubscription(
+        address indexed safe, address indexed recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType
+    );
 
     /// @notice Emitted when the new recovery module is added to registry
     /// @param module is the address of the new module
@@ -41,15 +56,23 @@ interface IRecovery {
     /// @param safe is the address of a safe
     event RecoveryDataCleared(address indexed safe);
 
-    /// @notice Emitted when the owner changes yearly subscription amount
+    /// @notice Emitted when the owner changes subscription amount
     /// @param amount is the new yearly subscription amount in wei
-    event YearlySubscriptionChanged(uint256 amount);
+    event SubscriptionAmountChanged(uint256 amount);
 
     /// @notice Adds recovery address and a recovery date
     /// Safe is expected to be a caller
     /// @param recoveryAddress is an address to which safe ownership will be transfered
     /// @param recoveryDate is a timestamp (in seconds) in the future when the recovery process will start
-    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external payable;
+    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external;
+
+    /// @notice Adds recovery address and a recovery date with subscription
+    /// Safe is expected to be a caller
+    /// @param recoveryAddress is an address to which safe ownership will be transfered
+    /// @param recoveryDate is a timestamp (in seconds) in the future when the recovery process will start
+    function addRecoveryWithSubscription(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType)
+        external
+        payable;
 
     /// @notice Clears recovery data
     /// Safe is expected to be a caller
@@ -74,9 +97,9 @@ interface IRecovery {
     /// @return recovery date timestamp (in seconds)
     function getRecoveryDate(address safe) external view returns (uint64);
 
-    /// @notice Returns yearly subscription amount in wei
+    /// @notice Returns subscription amount in wei
     /// @return amount in wei
-    function getYearlySubscription() external view returns (uint256);
+    function getSubscriptionAmount() external view returns (uint256);
 
     /// @notice Returns if the recovery module is whitelisted
     /// @param module is the address of the module

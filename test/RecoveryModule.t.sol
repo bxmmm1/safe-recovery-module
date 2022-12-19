@@ -78,13 +78,15 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     }
 
     function _addRecoveryAfter(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
-        uint256 subscriptionAmount = recovery.getYearlySubscription();
+        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
         bool success = safe.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
-            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)),
+            data: abi.encodeCall(
+                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+                ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
             baseGas: 0,
@@ -98,13 +100,15 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     }
 
     function _addRecoveryInactiveFor(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
-        uint256 subscriptionAmount = recovery.getYearlySubscription();
+        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
         bool success = safe.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
-            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.InactiveFor)),
+            data: abi.encodeCall(
+                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.InactiveFor)
+                ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
             baseGas: 0,
@@ -238,8 +242,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     }
 
     function testDuplicateAddRecoveryShouldWork() external {
-        // subscription for 1 year
-        uint256 subscriptionAmount = recovery.getYearlySubscription();
+        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         address recoveryAddress = address(1337);
         uint64 recoveryDate = uint64(block.timestamp) + 25 days;
@@ -248,7 +251,9 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         bool success = safe.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
-            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)),
+            data: abi.encodeCall(
+                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+                ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
             baseGas: 0,
@@ -264,7 +269,9 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         success = safe.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
-            data: abi.encodeCall(IRecovery.addRecovery, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)),
+            data: abi.encodeCall(
+                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+                ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
             baseGas: 0,

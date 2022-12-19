@@ -15,7 +15,7 @@ contract RecoveryModuleTest is Test {
     function testAddRecovery() external {
         uint256 amount = 0.2 ether;
 
-        recovery.addRecovery{value: amount}(
+        recovery.addRecoveryWithSubscription{value: amount}(
             address(1337), uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
         );
 
@@ -26,17 +26,38 @@ contract RecoveryModuleTest is Test {
         assert(address(1337).balance == amount);
     }
 
+    function testAddRecoveryShouldRevertOnInvalidAddress() external {
+        vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidRecoveryAddress.selector));
+        recovery.addRecoveryWithSubscription{value: 0.1 ether}(
+            address(0), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidRecoveryAddress.selector));
+        recovery.addRecovery(address(0), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After);
+    }
+
     function testAddRecoveryShouldRevert() external {
         uint256 amount = 1337 ether;
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidPayment.selector, 0.1 ether));
-        recovery.addRecovery{value: amount}(
+        recovery.addRecoveryWithSubscription{value: amount}(
             address(1337), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
         );
     }
 
-    function testSetYearlySubscription(uint256 amount) external {
-        recovery.setYearlySubscription(amount);
-        assert(recovery.getYearlySubscription() == amount);
+    function testAddRecoveryWithoutSubscription() external {
+        address recoveryAddress = address(1337);
+        uint64 recoveryDate = uint64(block.timestamp) + 500 days;
+
+        recovery.addRecovery(recoveryAddress, recoveryDate, IRecovery.RecoveryType.After);
+
+        assert(recovery.getRecoveryAddress(address(this)) == recoveryAddress);
+        assert(recovery.getRecoveryDate(address(this)) == uint256(recoveryDate));
+        assert(recovery.getRecoveryType(address(this)) == IRecovery.RecoveryType.After);
+    }
+
+    function testSubscriptionAmount(uint256 amount) external {
+        recovery.setSubscription(amount);
+        assert(recovery.getSubscriptionAmount() == amount);
     }
 
     function testAddRecoveryModule() external {
@@ -75,7 +96,7 @@ contract RecoveryModuleTest is Test {
         vm.expectRevert(IRecovery.Unauthorized.selector);
         recovery.updateLastActivity(fakeSafe);
         vm.stopBroadcast();
-        
+
         assert(recovery.getLastActivity(fakeSafe) == 0);
     }
 }

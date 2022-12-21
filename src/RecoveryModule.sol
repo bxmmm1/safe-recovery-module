@@ -65,14 +65,20 @@ contract RecoveryModule is IRecoveryModule, Guard {
             }
         }
 
-        // Swap the last owner with the new newOwner
-        // Previous address for only owner is sentinel address -> address(0x1)
-        bytes memory data = abi.encodeCall(OwnerManager.swapOwner, (address(0x1), owners[0], newOwner));
-        bool success =
-            safe.execTransactionFromModule({to: address(safe), value: 0, data: data, operation: Enum.Operation.Call});
-
-        if (!success) {
-            revert TransactionFailed();
+        // We've removed all other owners, only first owner is left
+        // If it is not the same address do a swapOwner
+        if (newOwner != owners[0]) {
+            // Previous address for only owner is sentinel address -> address(0x1)
+            bytes memory data = abi.encodeCall(OwnerManager.swapOwner, (address(0x1), owners[0], newOwner));
+            bool success = safe.execTransactionFromModule({
+                to: address(safe),
+                value: 0,
+                data: data,
+                operation: Enum.Operation.Call
+            });
+            if (!success) {
+                revert TransactionFailed();
+            }
         }
     }
 

@@ -142,15 +142,8 @@ contract Recovery is IRecovery, AccessControl {
         require(success);
     }
 
-    function _validateRecoveryAddress(address recoveryAddress) private view {
+    function _validateRecoveryAddress(address recoveryAddress) private pure {
         if (recoveryAddress == address(0)) {
-            revert InvalidRecoveryAddress();
-        }
-
-        // Make sure that first owner of safe is not the recovery address
-        address firstOwner = GnosisSafe(payable(msg.sender)).getOwners()[0];
-
-        if (recoveryAddress == firstOwner) {
             revert InvalidRecoveryAddress();
         }
     }

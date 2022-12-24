@@ -38,11 +38,11 @@ contract RecoveryModule is IRecoveryModule, Guard {
             _ensureSafeIsInactive(safeAddress);
         } else {
             _ensureRecoveryDateHasPassed(safeAddress);
+        }
 
-            // Make sure that timelock has passed
-            if (block.timestamp < getTimelockExpiration(safeAddress)) {
-                revert TooEarly();
-            }
+        // Make sure that timelock has passed
+        if (block.timestamp < getTimelockExpiration(safeAddress)) {
+            revert TooEarly();
         }
 
         recoveryRegistry.clearRecoveryData();
@@ -81,6 +81,8 @@ contract RecoveryModule is IRecoveryModule, Guard {
                 revert TransactionFailed();
             }
         }
+
+        emit TransferOwnershipFinalized(safeAddress);
     }
 
     /// @inheritdoc IRecoveryModule
@@ -90,16 +92,16 @@ contract RecoveryModule is IRecoveryModule, Guard {
             revert TransferOwnershipAlreadyInitiated();
         }
 
+        if (recoveryRegistry.getRecoveryAddress(safe) == address(0)) {
+            revert InvalidAddress();
+        }
+
         IRecovery.RecoveryType recoveryType = recoveryRegistry.getRecoveryType(safe);
 
         if (recoveryType == IRecovery.RecoveryType.InactiveFor) {
             _ensureSafeIsInactive(safe);
         } else {
             _ensureRecoveryDateHasPassed(safe);
-        }
-
-        if (recoveryRegistry.getRecoveryAddress(safe) == address(0)) {
-            revert InvalidAddress();
         }
 
         uint256 timeLockExpiration = block.timestamp + _timeLock;
@@ -140,7 +142,8 @@ contract RecoveryModule is IRecoveryModule, Guard {
         // do nothing, required by `Guard` interface
     }
 
-    // Required by `Guard` interface
+    /// @notice Required by `Guard` interface
+    /// Is used to record last activity of a Safe
     function checkAfterExecution(bytes32, bool) external {
         recoveryRegistry.updateLastActivity(msg.sender);
     }

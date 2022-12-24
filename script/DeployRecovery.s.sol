@@ -11,7 +11,7 @@ contract DeployRecovery is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         Recovery recovery = new Recovery();
-        RecoveryModule module = new RecoveryModule(address(recovery), 1 hours);
+        RecoveryModule module = new RecoveryModule(address(recovery), 10 minutes);
 
         console2.log("Recovery deployed:", address(recovery));
         console2.log("Safe module deployed:", address(module));

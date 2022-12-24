@@ -27,6 +27,10 @@ interface IRecoveryModule {
     /// @param timeLockExpiration is the timestamp (seconds) when the timelock expires
     event TransferOwnershipInitiated(address indexed safe, uint256 timeLockExpiration);
 
+    /// @notice Emitted when the transfer ownership is finalized
+    /// @param safe is the safe address
+    event TransferOwnershipFinalized(address indexed safe);
+
     /// @notice Emitted when the Safe cancels ownership transfer
     /// @param safe is the safe address
     event TransferOwnershipCanceled(address indexed safe);

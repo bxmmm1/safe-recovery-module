@@ -28,14 +28,12 @@ contract RecoveryModule is IRecoveryModule, Guard {
     /// @inheritdoc IRecoveryModule
     function finalizeTransferOwnership(address safeAddress) external {
         address newOwner = recoveryRegistry.getRecoveryAddress(safeAddress);
+        // If the new owner is not zero
+        // that means that the owner did not cancel transfer ownership
+        // we don't need to validate safe inactivity / or other dates
+        // just newOwner and that timelock expiration is passed
         if (newOwner == address(0)) {
             revert InvalidAddress();
-        }
-
-        if (recoveryRegistry.getRecoveryType(safeAddress) == IRecovery.RecoveryType.InactiveFor) {
-            _ensureSafeIsInactive(safeAddress);
-        } else {
-            _ensureRecoveryDateHasPassed(safeAddress);
         }
 
         // Make sure that timelock has passed

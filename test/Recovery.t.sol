@@ -46,6 +46,19 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         assert(_alice.balance == amount);
     }
 
+    function testClearRecovery() external {
+        vm.startPrank(safe);
+
+        recovery.addRecoveryWithSubscription{value: 0.2 ether}(
+            _alice, uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
+        );
+
+        recovery.clearRecoveryData();
+        vm.stopPrank();
+
+        assert(recovery.getRecoveryAddress(safe) == address(0));
+    }
+
     function testAddRecoveryShouldRevertOnInvalidAddress() external {
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidRecoveryAddress.selector));
         recovery.addRecoveryWithSubscription{value: 0.1 ether}(

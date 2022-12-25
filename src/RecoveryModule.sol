@@ -45,7 +45,7 @@ contract RecoveryModule is IRecoveryModule, Guard {
             revert TooEarly();
         }
 
-        recoveryRegistry.clearRecoveryData();
+        recoveryRegistry.clearRecoveryDataFromModule(safeAddress);
         delete _recovery[safeAddress];
 
         GnosisSafe safe = GnosisSafe(payable(safeAddress));

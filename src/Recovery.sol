@@ -69,7 +69,7 @@ contract Recovery is IRecovery, AccessControl {
         external
         payable
     {
-        uint256 amount = _calculatePaymentAmount(recoveryDate, _subscriptionAmount, recoveryType);
+        uint256 amount = calculatePaymentAmount(recoveryDate, _subscriptionAmount, recoveryType);
 
         if (msg.value != amount) {
             revert InvalidPayment(amount);
@@ -93,14 +93,18 @@ contract Recovery is IRecovery, AccessControl {
     }
 
     /// @inheritdoc IRecovery
-    function getLastActivity(address safe) external view returns (uint256) {
-        return _recovery[safe].lastActivity;
+    function clearRecoveryDataFromModule(address safe) external onlyRecoveryModule {
+        _clearRecoveryData(safe);
     }
 
     /// @inheritdoc IRecovery
     function clearRecoveryData() external {
-        delete _recovery[msg.sender];
-        emit RecoveryDataCleared(msg.sender);
+        _clearRecoveryData(msg.sender);
+    }
+
+    /// @inheritdoc IRecovery
+    function getLastActivity(address safe) external view returns (uint256) {
+        return _recovery[safe].lastActivity;
     }
 
     /// @inheritdoc IRecovery
@@ -142,25 +146,30 @@ contract Recovery is IRecovery, AccessControl {
         require(success);
     }
 
+    function _clearRecoveryData(address safe) private {
+        delete _recovery[safe];
+        emit RecoveryDataCleared(safe);
+    }
+
     function _validateRecoveryAddress(address recoveryAddress) private pure {
         if (recoveryAddress == address(0)) {
             revert InvalidRecoveryAddress();
         }
     }
 
-    function _calculatePaymentAmount(uint64 recoveryDate, uint256 subscriptionAmount, RecoveryType recoveryType)
-        private
+    function calculatePaymentAmount(uint256 recoveryDate, uint256 subscriptionAmount, RecoveryType recoveryType)
+        public
         view
         returns (uint256)
     {
         if (recoveryType == RecoveryType.After) {
-            uint256 yearsOfSubscription = (uint256(recoveryDate) - block.timestamp) / 365 days;
+            uint256 yearsOfSubscription = (recoveryDate - block.timestamp) / 365 days;
             // +1 is because of solidity's rounding
             return (yearsOfSubscription + 1) * subscriptionAmount;
         }
 
         // +1 is because of solidity's rounding
-        uint256 monthsOfSubscription = uint256(recoveryDate) / 30 days;
+        uint256 monthsOfSubscription = recoveryDate / 30 days;
         return (monthsOfSubscription + 1) * subscriptionAmount;
     }
 }

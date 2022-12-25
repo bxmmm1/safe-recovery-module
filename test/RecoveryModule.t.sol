@@ -1,53 +1,51 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "forge-std/console2.sol";
-import "forge-std/Test.sol";
-import "safe-contracts/GnosisSafe.sol";
-import "safe-contracts/common/Enum.sol";
-import "safe-contracts/base/ModuleManager.sol";
-import "./helpers/SafeDeployer.sol";
-import {RecoveryModule} from "../src/RecoveryModule.sol";
-import {Recovery} from "../src/Recovery.sol";
-import {IRecovery} from "../src/IRecovery.sol";
-import {IRecoveryModule} from "../src/IRecoveryModule.sol";
+import {GnosisSafe, GuardManager, Enum, ModuleManager} from "safe-contracts/GnosisSafe.sol";
+import {SafeDeployer} from "./helpers/SafeDeployer.sol";
+import {RecoveryModule, IRecoveryModule} from "../src/RecoveryModule.sol";
+import {Recovery, IRecovery} from "../src/Recovery.sol";
+import {Users} from "./helpers/Users.sol";
 
-contract RecoveryModuleTest is SafeDeployer, Test {
+contract RecoveryModuleTest is SafeDeployer, Users {
     RecoveryModule public module;
-    GnosisSafe public safe;
+    GnosisSafe public safeContract;
+    address public safe;
     Recovery public recovery;
 
     uint256 private _timelock = 10 days;
 
+    // Because this smart contract is the safe owner, we can hardcode signature
+    // 0xFA9385bE102ac3EAc297483Dd6233D62b3e1496 is address(this)
     bytes private _validSignature = bytes(
         hex"0000000000000000000000007FA9385bE102ac3EAc297483Dd6233D62b3e14960000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
     );
 
-    address owner0 = address(this);
-    address owner1 = address(999);
-    address owner2 = address(888);
-
     function setUp() public {
         // Setup safe owners
         address[] memory owners = new address[](3);
-        owners[0] = owner0;
-        owners[1] = owner1;
-        owners[2] = owner2;
+        owners[0] = address(this);
+        owners[1] = _alice;
+        owners[2] = _bob;
 
         // Deploy safe
-        safe = super.deploySafe({owners: owners, threshold: 1});
+        safeContract = super.deploySafe({owners: owners, threshold: 1});
+        safe = address(safeContract);
+        vm.label(safe, "Safe");
 
         recovery = new Recovery();
+        vm.label(address(recovery), "Recovery");
 
         // Deploy module
         module = new RecoveryModule(address(recovery), _timelock);
+        vm.label(address(module), "RecoveryModule");
 
-        vm.deal(address(safe), 1 ether);
+        vm.deal(safe, 1 ether);
 
         // Enable module on Safe
         // This assumes that threshold for safe will be 1, and that this contract is one of the safe owners
-        safe.execTransaction({
-            to: address(safe),
+        safeContract.execTransaction({
+            to: safe,
             value: 0,
             data: abi.encodeCall(ModuleManager.enableModule, (address(module))),
             operation: Enum.Operation.Call,
@@ -61,8 +59,8 @@ contract RecoveryModuleTest is SafeDeployer, Test {
 
         // Set guard on Safe
         // We do this so that we can have on chain record of latest safe's tx timestamp
-        safe.execTransaction({
-            to: address(safe),
+        safeContract.execTransaction({
+            to: safe,
             value: 0,
             data: abi.encodeCall(GuardManager.setGuard, (address(module))),
             operation: Enum.Operation.Call,
@@ -75,15 +73,17 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         });
 
         recovery.addRecoveryModule(address(module));
+    }
 
-        assert(safe.isModuleEnabled(address(module)) == true);
+    function testSetUp() external view {
+        assert(safeContract.isModuleEnabled(address(module)) == true);
     }
 
     function _addRecoveryAfter(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
         uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
-        bool success = safe.execTransaction({
+        bool success = safeContract.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
             data: abi.encodeCall(
@@ -105,7 +105,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
-        bool success = safe.execTransaction({
+        bool success = safeContract.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
             data: abi.encodeCall(
@@ -124,7 +124,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     }
 
     function _initiateTransferOwnership() private {
-        assert(recovery.getRecoveryAddress(address(safe)) == address(0));
+        assert(recovery.getRecoveryAddress(safe) == address(0));
 
         address recoveryAddress = address(1337);
         uint64 recoveryDate = uint64(block.timestamp) + 25 days;
@@ -135,7 +135,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         require(success, "tx failed");
 
         // Validate that recovery address and recovery date are set
-        address safeAddress = address(safe);
+        address safeAddress = safe;
 
         assert(recovery.getRecoveryAddress(safeAddress) == recoveryAddress);
         assert(recovery.getRecoveryDate(safeAddress) == recoveryDate);
@@ -157,7 +157,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         _initiateTransferOwnership();
 
         // Safe can call `cancelTransferOwnership` on Recovery module to stop ownership transfer
-        bool success = safe.execTransaction({
+        bool success = safeContract.execTransaction({
             to: address(module),
             value: 0,
             data: abi.encodeCall(IRecoveryModule.cancelTransferOwnership, ()),
@@ -172,7 +172,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
 
         require(success, "tx failed");
 
-        assert(module.getTimelockExpiration(address(safe)) == 0);
+        assert(module.getTimelockExpiration(safe) == 0);
     }
 
     /// Finalize transfer ownership should work
@@ -183,12 +183,12 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         vm.warp(block.timestamp + 11 days);
 
         // 3 Owners before
-        assert(safe.getOwners().length == 3);
+        assert(safeContract.getOwners().length == 3);
 
-        module.finalizeTransferOwnership(address(safe));
+        module.finalizeTransferOwnership(safe);
 
         // 1 owner after
-        assert(safe.getOwners().length == 1);
+        assert(safeContract.getOwners().length == 1);
     }
 
     function testGetTimelock() external view {
@@ -196,19 +196,19 @@ contract RecoveryModuleTest is SafeDeployer, Test {
     }
 
     function testFailFinalizeOwnership() external {
-        module.finalizeTransferOwnership(address(safe));
+        module.finalizeTransferOwnership(safe);
     }
 
     // If we did not initialize transfer ownership, and we try to finalize
     // it should revert
     function testFinalizeTransferOwnershipShouldRevert() external {
         vm.expectRevert(IRecoveryModule.InvalidAddress.selector);
-        module.finalizeTransferOwnership(address(safe));
+        module.finalizeTransferOwnership(safe);
     }
 
     function testInitiateTransferOwnershipShouldRevertWithInvalidAddress() external {
         vm.expectRevert(IRecoveryModule.InvalidAddress.selector);
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
     }
 
     function testInitiateTransferOwnershipTooEarlyShouldRevert() external {
@@ -218,7 +218,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         _addRecoveryAfter(recoveryAddress, recoveryDate);
 
         vm.expectRevert(IRecoveryModule.TooEarly.selector);
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
     }
 
     function testInitiateFinalizeTooEarlyShouldRevert() external {
@@ -230,17 +230,17 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         vm.warp(recoveryDate);
 
         // Initiate transfer ownership
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
 
         // Try to finalize right away
         vm.expectRevert(IRecoveryModule.TooEarly.selector);
-        module.finalizeTransferOwnership(address(safe));
+        module.finalizeTransferOwnership(safe);
     }
 
     function testInitiateTransferOwnershipShouldRevertWithAlreadyInitiated() external {
         _initiateTransferOwnership();
         vm.expectRevert(IRecoveryModule.TransferOwnershipAlreadyInitiated.selector);
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
     }
 
     function testDuplicateAddRecoveryShouldWork() external {
@@ -250,7 +250,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         uint64 recoveryDate = uint64(block.timestamp) + 25 days;
 
         // Add recovery address
-        bool success = safe.execTransaction({
+        bool success = safeContract.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
             data: abi.encodeCall(
@@ -268,7 +268,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         assert(success == true);
 
         // Add recovery address
-        success = safe.execTransaction({
+        success = safeContract.execTransaction({
             to: address(recovery),
             value: subscriptionAmount,
             data: abi.encodeCall(
@@ -296,11 +296,11 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         // fast forward 3 days
         vm.warp(block.timestamp + 3 days);
 
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
 
         vm.warp(block.timestamp + 11 days);
 
-        module.finalizeTransferOwnership(address(safe));
+        module.finalizeTransferOwnership(safe);
     }
 
     function testInactiveForTooEarly() external {
@@ -313,6 +313,6 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         // no fast forward
         vm.expectRevert(IRecoveryModule.TooEarly.selector);
 
-        module.initiateTransferOwnership(address(safe));
+        module.initiateTransferOwnership(safe);
     }
 }

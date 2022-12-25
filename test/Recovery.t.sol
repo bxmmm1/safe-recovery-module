@@ -1,46 +1,49 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "forge-std/Test.sol";
 import "./helpers/SafeDeployer.sol";
+import {Recovery, IRecovery} from "../src/Recovery.sol";
+import {Users} from "./helpers/Users.sol";
 
-import {IRecovery} from "..//src/IRecovery.sol";
-import {Recovery} from "../src/Recovery.sol";
-
-contract RecoveryModuleTest is SafeDeployer, Test {
+contract RecoveryModuleTest is SafeDeployer, Users {
     Recovery public recovery;
-    GnosisSafe public safe;
+    GnosisSafe public safeContract;
+    address public safe;
 
     function setUp() public {
         recovery = new Recovery();
+        vm.label(address(recovery), "Recovery");
         _deploySafe();
     }
 
     function _deploySafe() private {
         address[] memory owners = new address[](3);
-        owners[0] = address(55);
-        owners[1] = address(56);
-        owners[2] = address(57);
+        owners[0] = _alice;
+        owners[1] = _bob;
+        owners[2] = _charlie;
 
         // Deploy safe
-        safe = super.deploySafe({owners: owners, threshold: 1});
+        safeContract = super.deploySafe({owners: owners, threshold: 1});
+        safe = address(safe);
+        vm.label(safe, "Safe");
 
-        vm.deal(address(safe), 1 ether);
+        vm.deal(safe, 1 ether);
     }
 
     function testAddRecovery() external {
         uint256 amount = 0.2 ether;
 
-        vm.prank(address(safe));
+        vm.prank(safe);
+
         recovery.addRecoveryWithSubscription{value: amount}(
-            address(1337), uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
+            _alice, uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
         );
 
-        assert(address(1337).balance == 0);
+        assert(_alice.balance == 0);
 
-        recovery.withdrawFunds(amount, address(1337));
+        recovery.withdrawFunds(amount, _alice);
 
-        assert(address(1337).balance == amount);
+        assert(_alice.balance == amount);
     }
 
     function testAddRecoveryShouldRevertOnInvalidAddress() external {
@@ -57,7 +60,7 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         uint256 amount = 1337 ether;
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidPayment.selector, 0.1 ether));
         recovery.addRecoveryWithSubscription{value: amount}(
-            address(1337), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
+            _alice, uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
         );
     }
 
@@ -65,12 +68,12 @@ contract RecoveryModuleTest is SafeDeployer, Test {
         address recoveryAddress = address(1337);
         uint64 recoveryDate = uint64(block.timestamp) + 500 days;
 
-        vm.prank(address(safe));
+        vm.prank(safe);
         recovery.addRecovery(recoveryAddress, recoveryDate, IRecovery.RecoveryType.After);
 
-        assert(recovery.getRecoveryAddress(address(safe)) == recoveryAddress);
-        assert(recovery.getRecoveryDate(address(safe)) == uint256(recoveryDate));
-        assert(recovery.getRecoveryType(address(safe)) == IRecovery.RecoveryType.After);
+        assert(recovery.getRecoveryAddress(safe) == recoveryAddress);
+        assert(recovery.getRecoveryDate(safe) == uint256(recoveryDate));
+        assert(recovery.getRecoveryType(safe) == IRecovery.RecoveryType.After);
     }
 
     function testSubscriptionAmount(uint256 amount) external {

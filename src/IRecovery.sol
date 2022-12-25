@@ -77,6 +77,10 @@ interface IRecovery {
         payable;
 
     /// @notice Clears recovery data
+    /// @param safe is the address of the safe
+    function clearRecoveryDataFromModule(address safe) external;
+
+    /// @notice Clears recovery data
     /// Safe is expected to be a caller
     function clearRecoveryData() external;
 

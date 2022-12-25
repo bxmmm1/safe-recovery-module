@@ -191,10 +191,6 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         assert(safeContract.getOwners().length == 1);
     }
 
-    function testGetTimelock() external view {
-        assert(module.getTimelock() == _timelock);
-    }
-
     function testFailFinalizeOwnership() external {
         module.finalizeTransferOwnership(safe);
     }

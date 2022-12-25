@@ -50,8 +50,4 @@ interface IRecoveryModule {
     /// @param safe is the safe address
     /// @return timestamp in seconds
     function getTimelockExpiration(address safe) external view returns (uint256);
-
-    /// @notice Returns the timelock expiration
-    /// @return timestamp duration in seconds
-    function getTimelock() external view returns (uint256);
 }

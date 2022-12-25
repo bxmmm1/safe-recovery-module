@@ -11,18 +11,18 @@ import {IRecoveryModule} from "./IRecoveryModule.sol";
 
 /// @author Benjamin H - <benjaminxh@gmail.com>
 contract RecoveryModule is IRecoveryModule, Guard {
-    // Timelock period for ownership transfer
-    uint256 private immutable _timeLock;
-
     // Recovery Registry
     Recovery public immutable recoveryRegistry;
+
+    // Timelock period for ownership transfer
+    uint256 public immutable timeLock;
 
     // Safe address -> timelockExpiration timestamp
     mapping(address => uint256) private _recovery;
 
-    constructor(address recoveryAddress, uint256 timeLock) {
+    constructor(address recoveryAddress, uint256 lock) {
         recoveryRegistry = Recovery(recoveryAddress);
-        _timeLock = timeLock;
+        timeLock = lock;
     }
 
     /// @inheritdoc IRecoveryModule
@@ -32,9 +32,7 @@ contract RecoveryModule is IRecoveryModule, Guard {
             revert InvalidAddress();
         }
 
-        IRecovery.RecoveryType recoveryType = recoveryRegistry.getRecoveryType(safeAddress);
-
-        if (recoveryType == IRecovery.RecoveryType.InactiveFor) {
+        if (recoveryRegistry.getRecoveryType(safeAddress) == IRecovery.RecoveryType.InactiveFor) {
             _ensureSafeIsInactive(safeAddress);
         } else {
             _ensureRecoveryDateHasPassed(safeAddress);
@@ -53,12 +51,11 @@ contract RecoveryModule is IRecoveryModule, Guard {
 
         // start removing from the last owner, untill the last one is left
         for (uint256 i = (owners.length - 1); i > 0; --i) {
-            // changes threshold to 1 so the safe becomes 1/1 for the new owner
-            bytes memory callData = abi.encodeCall(OwnerManager.removeOwner, (owners[i - 1], owners[i], 1));
             bool s = safe.execTransactionFromModule({
-                to: address(safe),
+                to: safeAddress,
                 value: 0,
-                data: callData,
+                // changes threshold to 1 so the safe becomes 1/1 for the new owner
+                data: abi.encodeCall(OwnerManager.removeOwner, (owners[i - 1], owners[i], 1)),
                 operation: Enum.Operation.Call
             });
             if (!s) {
@@ -69,12 +66,11 @@ contract RecoveryModule is IRecoveryModule, Guard {
         // We've removed all other owners, only first owner is left
         // If it is not the same address do a swapOwner
         if (newOwner != owners[0]) {
-            // Previous address for only owner is sentinel address -> address(0x1)
-            bytes memory data = abi.encodeCall(OwnerManager.swapOwner, (address(0x1), owners[0], newOwner));
             bool success = safe.execTransactionFromModule({
-                to: address(safe),
+                to: safeAddress,
                 value: 0,
-                data: data,
+                // Previous address for only owner is sentinel address -> address(0x1)
+                data: abi.encodeCall(OwnerManager.swapOwner, (address(0x1), owners[0], newOwner)),
                 operation: Enum.Operation.Call
             });
             if (!success) {
@@ -96,15 +92,13 @@ contract RecoveryModule is IRecoveryModule, Guard {
             revert InvalidAddress();
         }
 
-        IRecovery.RecoveryType recoveryType = recoveryRegistry.getRecoveryType(safe);
-
-        if (recoveryType == IRecovery.RecoveryType.InactiveFor) {
+        if (recoveryRegistry.getRecoveryType(safe) == IRecovery.RecoveryType.InactiveFor) {
             _ensureSafeIsInactive(safe);
         } else {
             _ensureRecoveryDateHasPassed(safe);
         }
 
-        uint256 timeLockExpiration = block.timestamp + _timeLock;
+        uint256 timeLockExpiration = block.timestamp + timeLock;
 
         _recovery[safe] = timeLockExpiration;
         emit TransferOwnershipInitiated(safe, timeLockExpiration);
@@ -121,23 +115,18 @@ contract RecoveryModule is IRecoveryModule, Guard {
         return _recovery[safe];
     }
 
-    /// @inheritdoc IRecoveryModule
-    function getTimelock() external view returns (uint256) {
-        return _timeLock;
-    }
-
     function checkTransaction(
-        address to,
-        uint256 value,
-        bytes memory data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address payable refundReceiver,
-        bytes memory signatures,
-        address msgSender
+        address,
+        uint256,
+        bytes memory,
+        Enum.Operation,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        address payable,
+        bytes memory,
+        address
     ) external {
         // do nothing, required by `Guard` interface
     }

@@ -17,9 +17,9 @@ contract Recovery is IRecovery, AccessControl {
 
     struct RecoveryData {
         address recoveryAddress;
-        uint64 recoveryDate;
+        uint40 recoveryDate;
         RecoveryType recoveryType;
-        uint256 lastActivity;
+        uint40 lastActivity;
     }
 
     // [safe address] -> Recovery data
@@ -51,21 +51,21 @@ contract Recovery is IRecovery, AccessControl {
     }
 
     /// @inheritdoc IRecovery
-    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external {
+    function addRecovery(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType) external {
         _validateRecoveryAddress(recoveryAddress);
 
         _recovery[msg.sender] = RecoveryData({
             recoveryAddress: recoveryAddress,
             recoveryDate: recoveryDate,
             recoveryType: recoveryType,
-            lastActivity: block.timestamp
+            lastActivity: uint40(block.timestamp)
         });
 
         emit RecoveryAddressAdded(msg.sender, recoveryAddress, recoveryDate, recoveryType);
     }
 
     /// @inheritdoc IRecovery
-    function addRecoveryWithSubscription(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType)
+    function addRecoveryWithSubscription(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType)
         external
         payable
     {
@@ -81,7 +81,7 @@ contract Recovery is IRecovery, AccessControl {
             recoveryAddress: recoveryAddress,
             recoveryDate: recoveryDate,
             recoveryType: recoveryType,
-            lastActivity: block.timestamp
+            lastActivity: uint40(block.timestamp)
         });
 
         emit RecoveryAddressAddedWithSubscription(msg.sender, recoveryAddress, recoveryDate, recoveryType);
@@ -89,7 +89,7 @@ contract Recovery is IRecovery, AccessControl {
 
     /// @inheritdoc IRecovery
     function updateLastActivity(address safe) external onlyRecoveryModule {
-        _recovery[safe].lastActivity = block.timestamp;
+        _recovery[safe].lastActivity = uint40(block.timestamp);
     }
 
     /// @inheritdoc IRecovery

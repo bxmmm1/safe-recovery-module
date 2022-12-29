@@ -36,7 +36,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         vm.prank(safe);
 
         recovery.addRecoveryWithSubscription{value: amount}(
-            _alice, uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
+            _alice, uint40(block.timestamp) + 500 days, IRecovery.RecoveryType.After
         );
 
         assert(_alice.balance == 0);
@@ -50,7 +50,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         vm.startPrank(safe);
 
         recovery.addRecoveryWithSubscription{value: 0.2 ether}(
-            _alice, uint64(block.timestamp) + 500 days, IRecovery.RecoveryType.After
+            _alice, uint40(block.timestamp) + 500 days, IRecovery.RecoveryType.After
         );
 
         recovery.clearRecoveryData();
@@ -62,24 +62,24 @@ contract RecoveryModuleTest is SafeDeployer, Users {
     function testAddRecoveryShouldRevertOnInvalidAddress() external {
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidRecoveryAddress.selector));
         recovery.addRecoveryWithSubscription{value: 0.1 ether}(
-            address(0), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
+            address(0), uint40(block.timestamp) + 25 days, IRecovery.RecoveryType.After
         );
 
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidRecoveryAddress.selector));
-        recovery.addRecovery(address(0), uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After);
+        recovery.addRecovery(address(0), uint40(block.timestamp) + 25 days, IRecovery.RecoveryType.After);
     }
 
     function testAddRecoveryShouldRevert() external {
         uint256 amount = 1337 ether;
         vm.expectRevert(abi.encodeWithSelector(IRecovery.InvalidPayment.selector, 0.1 ether));
         recovery.addRecoveryWithSubscription{value: amount}(
-            _alice, uint64(block.timestamp) + 25 days, IRecovery.RecoveryType.After
+            _alice, uint40(block.timestamp) + 25 days, IRecovery.RecoveryType.After
         );
     }
 
     function testAddRecoveryWithoutSubscription() external {
         address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 500 days;
+        uint40 recoveryDate = uint40(block.timestamp) + 500 days;
 
         vm.prank(safe);
         recovery.addRecovery(recoveryAddress, recoveryDate, IRecovery.RecoveryType.After);

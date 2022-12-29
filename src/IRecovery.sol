@@ -66,13 +66,13 @@ interface IRecovery {
     /// Safe is expected to be a caller
     /// @param recoveryAddress is an address to which safe ownership will be transfered
     /// @param recoveryDate is a timestamp (in seconds) in the future when the recovery process will start
-    function addRecovery(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType) external;
+    function addRecovery(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType) external;
 
     /// @notice Adds recovery address and a recovery date with subscription
     /// Safe is expected to be a caller
     /// @param recoveryAddress is an address to which safe ownership will be transfered
     /// @param recoveryDate is a timestamp (in seconds) in the future when the recovery process will start
-    function addRecoveryWithSubscription(address recoveryAddress, uint64 recoveryDate, RecoveryType recoveryType)
+    function addRecoveryWithSubscription(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType)
         external
         payable;
 

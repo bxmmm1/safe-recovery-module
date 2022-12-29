@@ -79,7 +79,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         assert(safeContract.isModuleEnabled(address(module)) == true);
     }
 
-    function _addRecoveryAfter(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
+    function _addRecoveryAfter(address recoveryAddress, uint40 recoveryDate) private returns (bool) {
         uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
@@ -101,7 +101,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         return success;
     }
 
-    function _addRecoveryInactiveFor(address recoveryAddress, uint64 recoveryDate) private returns (bool) {
+    function _addRecoveryInactiveFor(address recoveryAddress, uint40 recoveryDate) private returns (bool) {
         uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         // Add recovery address
@@ -127,7 +127,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         assert(recovery.getRecoveryAddress(safe) == address(0));
 
         address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+        uint40 recoveryDate = uint40(block.timestamp) + 25 days;
 
         // subscription for 1 year
         bool success = _addRecoveryAfter(recoveryAddress, recoveryDate);
@@ -209,7 +209,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
 
     function testInitiateTransferOwnershipTooEarlyShouldRevert() external {
         address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+        uint40 recoveryDate = uint40(block.timestamp) + 25 days;
 
         _addRecoveryAfter(recoveryAddress, recoveryDate);
 
@@ -219,7 +219,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
 
     function testInitiateFinalizeTooEarlyShouldRevert() external {
         address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+        uint40 recoveryDate = uint40(block.timestamp) + 25 days;
 
         _addRecoveryAfter(recoveryAddress, recoveryDate);
 
@@ -243,7 +243,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         uint256 subscriptionAmount = recovery.getSubscriptionAmount();
 
         address recoveryAddress = address(1337);
-        uint64 recoveryDate = uint64(block.timestamp) + 25 days;
+        uint40 recoveryDate = uint40(block.timestamp) + 25 days;
 
         // Add recovery address
         bool success = safeContract.execTransaction({

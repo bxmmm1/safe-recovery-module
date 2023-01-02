@@ -115,9 +115,10 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         recovery.addRecoveryModule(module);
         vm.startBroadcast(module);
 
+        vm.warp(1641070800);
         address fakeSafe = address(12345);
         recovery.updateLastActivity(fakeSafe);
-        assert(recovery.getLastActivity(fakeSafe) == block.timestamp);
+        assertEq(recovery.getLastActivity(fakeSafe), block.timestamp, "bad timestamp");
         vm.stopBroadcast();
     }
 

@@ -239,10 +239,10 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         external
     {
         vm.assume(recoveryAddress != address(0));
-        vm.assume(recoveryValue < address(safe).balance);
         vm.assume(recoveryAddress != address(1)); // sentinel modules address
-
+        vm.assume(recoveryValue < address(safe).balance);
         vm.assume(inactivityInSeconds != 0);
+        vm.label(recoveryAddress, "Recovery address");
 
         bool success = _addRecoveryInactiveFor(recoveryAddress, inactivityInSeconds, recoveryValue);
 

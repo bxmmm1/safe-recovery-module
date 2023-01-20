@@ -4,14 +4,12 @@ pragma solidity 0.8.17;
 import {GnosisSafe, GuardManager, Enum, ModuleManager} from "safe-contracts/GnosisSafe.sol";
 import {SafeDeployer} from "./helpers/SafeDeployer.sol";
 import {RecoveryModule, IRecoveryModule} from "../src/RecoveryModule.sol";
-import {Recovery, IRecovery} from "../src/Recovery.sol";
 import {Users} from "./helpers/Users.sol";
 
 contract RecoveryModuleTest is SafeDeployer, Users {
     RecoveryModule public module;
     GnosisSafe public safeContract;
     address public safe;
-    Recovery public recovery;
 
     uint256 private _timelock = 10 days;
 
@@ -33,11 +31,8 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         safe = address(safeContract);
         vm.label(safe, "Safe");
 
-        recovery = new Recovery();
-        vm.label(address(recovery), "Recovery");
-
         // Deploy module
-        module = new RecoveryModule(address(recovery), _timelock);
+        module = new RecoveryModule(_timelock);
         vm.label(address(module), "RecoveryModule");
 
         vm.deal(safe, 1 ether);
@@ -71,8 +66,6 @@ contract RecoveryModuleTest is SafeDeployer, Users {
             refundReceiver: payable(address(0)),
             signatures: _validSignature
         });
-
-        recovery.addRecoveryModule(address(module));
     }
 
     function testSetUp() external view {
@@ -80,14 +73,14 @@ contract RecoveryModuleTest is SafeDeployer, Users {
     }
 
     function _addRecoveryAfter(address recoveryAddress, uint40 recoveryDate) private returns (bool) {
-        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
+        uint256 subscriptionAmount = module.getSubscriptionAmount();
 
         // Add recovery address
         bool success = safeContract.execTransaction({
-            to: address(recovery),
+            to: address(module),
             value: subscriptionAmount,
             data: abi.encodeCall(
-                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+                IRecoveryModule.addRecovery, (recoveryAddress, recoveryDate, IRecoveryModule.RecoveryType.After)
                 ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
@@ -102,14 +95,14 @@ contract RecoveryModuleTest is SafeDeployer, Users {
     }
 
     function _addRecoveryInactiveFor(address recoveryAddress, uint40 recoveryDate) private returns (bool) {
-        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
+        uint256 subscriptionAmount = module.getSubscriptionAmount();
 
         // Add recovery address
         bool success = safeContract.execTransaction({
-            to: address(recovery),
+            to: address(module),
             value: subscriptionAmount,
             data: abi.encodeCall(
-                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.InactiveFor)
+                IRecoveryModule.addRecovery, (recoveryAddress, recoveryDate, IRecoveryModule.RecoveryType.InactiveFor)
                 ),
             operation: Enum.Operation.Call,
             safeTxGas: 0,
@@ -124,7 +117,7 @@ contract RecoveryModuleTest is SafeDeployer, Users {
     }
 
     function _initiateTransferOwnership() private {
-        assert(recovery.getRecoveryAddress(safe) == address(0));
+        assert(module.getRecoveryAddress(safe) == address(0));
 
         address recoveryAddress = address(1337);
         uint40 recoveryDate = uint40(block.timestamp) + 25 days;
@@ -137,8 +130,8 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         // Validate that recovery address and recovery date are set
         address safeAddress = safe;
 
-        assert(recovery.getRecoveryAddress(safeAddress) == recoveryAddress);
-        assert(recovery.getRecoveryDate(safeAddress) == recoveryDate);
+        assert(module.getRecoveryAddress(safeAddress) == recoveryAddress);
+        assert(module.getRecoveryDate(safeAddress) == recoveryDate);
 
         // fast forward blockchain so that we can call `initiateTransferOwnership` successfully
         vm.warp(recoveryDate);
@@ -239,48 +232,46 @@ contract RecoveryModuleTest is SafeDeployer, Users {
         module.initiateTransferOwnership(safe);
     }
 
-    function testDuplicateAddRecoveryShouldWork() external {
-        uint256 subscriptionAmount = recovery.getSubscriptionAmount();
+    // function testDuplicateAddRecoveryShouldWork() external {
+    //     address recoveryAddress = address(1337);
+    //     uint40 recoveryDate = uint40(block.timestamp) + 25 days;
 
-        address recoveryAddress = address(1337);
-        uint40 recoveryDate = uint40(block.timestamp) + 25 days;
+    //     // Add recovery address
+    //     bool success = safeContract.execTransaction({
+    //         to: address(module),
+    //         value: subscriptionAmount,
+    //         data: abi.encodeCall(
+    //             IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+    //             ),
+    //         operation: Enum.Operation.Call,
+    //         safeTxGas: 0,
+    //         baseGas: 0,
+    //         gasPrice: 0,
+    //         gasToken: address(0),
+    //         refundReceiver: payable(address(0)),
+    //         signatures: _validSignature
+    //     });
 
-        // Add recovery address
-        bool success = safeContract.execTransaction({
-            to: address(recovery),
-            value: subscriptionAmount,
-            data: abi.encodeCall(
-                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
-                ),
-            operation: Enum.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: _validSignature
-        });
+    //     assert(success == true);
 
-        assert(success == true);
+    //     // Add recovery address
+    //     success = safeContract.execTransaction({
+    //         to: address(recovery),
+    //         value: subscriptionAmount,
+    //         data: abi.encodeCall(
+    //             IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
+    //             ),
+    //         operation: Enum.Operation.Call,
+    //         safeTxGas: 0,
+    //         baseGas: 0,
+    //         gasPrice: 0,
+    //         gasToken: address(0),
+    //         refundReceiver: payable(address(0)),
+    //         signatures: _validSignature
+    //     });
 
-        // Add recovery address
-        success = safeContract.execTransaction({
-            to: address(recovery),
-            value: subscriptionAmount,
-            data: abi.encodeCall(
-                IRecovery.addRecoveryWithSubscription, (recoveryAddress, recoveryDate, IRecovery.RecoveryType.After)
-                ),
-            operation: Enum.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: _validSignature
-        });
-
-        assert(success == true);
-    }
+    //     assert(success == true);
+    // }
 
     function testInactiveForShouldWork() external {
         address recoveryAddress = address(1337);

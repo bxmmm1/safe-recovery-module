@@ -5,33 +5,83 @@ import {Enum} from "safe-contracts/common/Enum.sol";
 import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
 import {Guard} from "safe-contracts/base/GuardManager.sol";
 import {OwnerManager} from "safe-contracts/base/OwnerManager.sol";
-import {Recovery} from "./Recovery.sol";
-import {IRecovery} from "./IRecovery.sol";
 import {IRecoveryModule} from "./IRecoveryModule.sol";
 
 /// @author Benjamin H - <benjaminxh@gmail.com>
 contract RecoveryModule is IRecoveryModule, Guard {
-    // Recovery Registry
-    Recovery public immutable recoveryRegistry;
-
     // Timelock period for ownership transfer
     uint256 public immutable timeLock;
+
+    struct RecoveryData {
+        address recoveryAddress;
+        uint40 recoveryDate;
+        RecoveryType recoveryType;
+        uint40 lastActivity;
+    }
+
+    uint256 private _subscriptionAmount = 0.1 ether;
+
+    // [safe address] -> Recovery data
+    mapping(address => RecoveryData) private _recoveryData;
 
     // Safe address -> timelockExpiration timestamp
     mapping(address => uint256) private _recovery;
 
-    constructor(address recoveryAddress, uint256 lock) {
-        recoveryRegistry = Recovery(recoveryAddress);
+    constructor(uint256 lock) {
         timeLock = lock;
     }
 
     /// @inheritdoc IRecoveryModule
+    function addRecovery(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType) external payable {
+        if (msg.value != _subscriptionAmount) {
+            revert InvalidPayment(_subscriptionAmount);
+        }
+
+        if (recoveryAddress == address(0)) {
+            revert InvalidRecoveryAddress();
+        }
+
+        _recoveryData[msg.sender] = RecoveryData({
+            recoveryAddress: recoveryAddress,
+            recoveryDate: recoveryDate,
+            recoveryType: recoveryType,
+            lastActivity: uint40(block.timestamp)
+        });
+
+        emit RecoveryAddressAdded(msg.sender, recoveryAddress, recoveryDate, recoveryType);
+    }
+
+    function clearRecovery() external {
+        _clearRecovery(msg.sender);
+    }
+
+    /// @inheritdoc IRecoveryModule
+    function initiateTransferOwnership(address safe) external {
+        // This is done to prevent somebody from extending timeLockExpiration value
+        if (_recovery[safe] != 0) {
+            revert TransferOwnershipAlreadyInitiated();
+        }
+
+        if (getRecoveryAddress(safe) == address(0)) {
+            revert InvalidAddress();
+        }
+
+        if (getRecoveryType(safe) == IRecoveryModule.RecoveryType.InactiveFor) {
+            _ensureSafeIsInactive(safe);
+        } else {
+            _ensureRecoveryDateHasPassed(safe);
+        }
+
+        uint256 timeLockExpiration = block.timestamp + timeLock;
+
+        _recovery[safe] = timeLockExpiration;
+        emit TransferOwnershipInitiated(safe, timeLockExpiration);
+    }
+
+    /// @inheritdoc IRecoveryModule
     function finalizeTransferOwnership(address safeAddress) external {
-        address newOwner = recoveryRegistry.getRecoveryAddress(safeAddress);
-        // If the new owner is not zero
-        // that means that the owner did not cancel transfer ownership
-        // we don't need to validate safe inactivity / or other dates
-        // just newOwner and that timelock expiration is passed
+        address newOwner = getRecoveryAddress(safeAddress);
+        // owner != address zero means that the owner did not cancel transfer ownership
         if (newOwner == address(0)) {
             revert InvalidAddress();
         }
@@ -40,8 +90,9 @@ contract RecoveryModule is IRecoveryModule, Guard {
         if (block.timestamp < getTimelockExpiration(safeAddress)) {
             revert TooEarly();
         }
-
-        recoveryRegistry.clearRecoveryDataFromModule(safeAddress);
+        
+        // Clear recovery data
+        _clearRecovery(safeAddress);
         delete _recovery[safeAddress];
 
         GnosisSafe safe = GnosisSafe(payable(safeAddress));
@@ -80,37 +131,9 @@ contract RecoveryModule is IRecoveryModule, Guard {
     }
 
     /// @inheritdoc IRecoveryModule
-    function initiateTransferOwnership(address safe) external {
-        // This is done to prevent somebody from extending timeLockExpiration value
-        if (_recovery[safe] != 0) {
-            revert TransferOwnershipAlreadyInitiated();
-        }
-
-        if (recoveryRegistry.getRecoveryAddress(safe) == address(0)) {
-            revert InvalidAddress();
-        }
-
-        if (recoveryRegistry.getRecoveryType(safe) == IRecovery.RecoveryType.InactiveFor) {
-            _ensureSafeIsInactive(safe);
-        } else {
-            _ensureRecoveryDateHasPassed(safe);
-        }
-
-        uint256 timeLockExpiration = block.timestamp + timeLock;
-
-        _recovery[safe] = timeLockExpiration;
-        emit TransferOwnershipInitiated(safe, timeLockExpiration);
-    }
-
-    /// @inheritdoc IRecoveryModule
     function cancelTransferOwnership() external {
         delete _recovery[msg.sender];
         emit TransferOwnershipCanceled(msg.sender);
-    }
-
-    /// @inheritdoc IRecoveryModule
-    function getTimelockExpiration(address safe) public view returns (uint256) {
-        return _recovery[safe];
     }
 
     function checkTransaction(
@@ -129,21 +152,57 @@ contract RecoveryModule is IRecoveryModule, Guard {
         // do nothing, required by `Guard` interface
     }
 
-    /// @notice Required by `Guard` interface
-    /// Is used to record last activity of a Safe
+    /// @dev Required by `Guard` interface from Safe
+    /// Records last safe activity
     function checkAfterExecution(bytes32, bool) external {
-        recoveryRegistry.updateLastActivity(msg.sender);
+        _recoveryData[msg.sender].lastActivity = uint40(block.timestamp);
+    }
+
+    function _clearRecovery(address safe) internal {
+        delete _recovery[safe];
+        emit RecoveryDataCleared(safe);
+    }
+
+    // View functions
+
+    /// @inheritdoc IRecoveryModule
+    function getTimelockExpiration(address safe) public view returns (uint256) {
+        return _recovery[safe];
+    }
+
+    /// @inheritdoc IRecoveryModule
+    function getRecoveryAddress(address safe) public view returns (address) {
+        return _recoveryData[safe].recoveryAddress;
+    }
+
+    /// @inheritdoc IRecoveryModule
+    function getRecoveryDate(address safe) public view returns (uint64) {
+        return _recoveryData[safe].recoveryDate;
+    }
+
+    /// @inheritdoc IRecoveryModule
+    function getRecoveryType(address safe) public view returns (RecoveryType) {
+        return _recoveryData[safe].recoveryType;
+    }
+
+    /// @inheritdoc IRecoveryModule
+    function getLastActivity(address safe) public view returns (uint256) {
+        return _recoveryData[safe].lastActivity;
+    }
+
+    function getSubscriptionAmount() external view returns (uint256) {
+        return _subscriptionAmount;
     }
 
     function _ensureSafeIsInactive(address safe) private view {
         // Recovery date represents for how long the safe must be inactive to not revert
-        if (block.timestamp - recoveryRegistry.getLastActivity(safe) < recoveryRegistry.getRecoveryDate(safe)) {
+        if (block.timestamp - getLastActivity(safe) < getRecoveryDate(safe)) {
             revert TooEarly();
         }
     }
 
     function _ensureRecoveryDateHasPassed(address safe) private view {
-        if (block.timestamp < recoveryRegistry.getRecoveryDate(safe)) {
+        if (block.timestamp < getRecoveryDate(safe)) {
             revert TooEarly();
         }
     }

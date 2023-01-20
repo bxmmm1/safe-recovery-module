@@ -51,6 +51,10 @@ interface IRecoveryModule {
     /// @param safe is the address of a safe
     event RecoveryDataCleared(address indexed safe);
 
+    /// @notice Emitted ether is transfered to an address
+    /// @param recipient is the address of a recipient
+    event EtherTransferred(address indexed recipient);
+
     /// @notice Emitted when the transfer ownership is initiated
     /// @param safe is the safe address
     /// @param timeLockExpiration is the timestamp (seconds) when the timelock expires
@@ -60,12 +64,8 @@ interface IRecoveryModule {
     /// @param safe is the safe address
     event TransferOwnershipFinalized(address indexed safe);
 
-    /// @notice Emitted when the Safe cancels ownership transfer
-    /// @param safe is the safe address
-    event TransferOwnershipCanceled(address indexed safe);
-
-    /// @notice Cancels the ownership transfer when called by Safe
-    function cancelTransferOwnership() external;
+    /// @notice Cancels/clears the ownership transfer when called by Safe
+    function clearRecovery() external;
 
     /// @notice Initiates ownership transfer
     /// @param safe is the safe address
@@ -99,6 +99,11 @@ interface IRecoveryModule {
     /// @param safe is the address of the safe
     /// @return recovery date timestamp (in seconds)
     function getRecoveryDate(address safe) external view returns (uint64);
+
+    /// @notice Returns recovery value for a `safe`
+    /// @param safe is the address of the safe
+    /// @return recovery value
+    function getRecoveryValue(address safe) external view returns (uint256);
 
     /// @notice Adds recovery address and a recovery date
     /// Safe is expected to be a caller

@@ -6,26 +6,28 @@ import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
 import {Guard} from "safe-contracts/base/GuardManager.sol";
 import {OwnerManager} from "safe-contracts/base/OwnerManager.sol";
 import {IRecoveryModule} from "./IRecoveryModule.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 /// @author Benjamin H - <benjaminxh@gmail.com>
 contract RecoveryModule is IRecoveryModule, Guard {
+    using SafeTransferLib for address;
+
     // Timelock period for ownership transfer
     uint256 public immutable timeLock;
 
     struct RecoveryData {
-        address recoveryAddress;
-        uint40 recoveryDate;
-        RecoveryType recoveryType;
-        uint40 lastActivity;
+        address recoveryAddress; // slot 0
+        uint40 recoveryDate; // slot 0
+        RecoveryType recoveryType; // slot 0
+        uint40 lastActivity; // slot 0
+        uint256 recoveryValue; // slot 1
     }
 
-    uint256 private _subscriptionAmount = 0.1 ether;
-
-    // [safe address] -> Recovery data
+    // [Safe address] -> Recovery data
     mapping(address => RecoveryData) private _recoveryData;
 
-    // Safe address -> timelockExpiration timestamp
-    mapping(address => uint256) private _recovery;
+    // [Safe address] -> timelockExpiration timestamp in seconds
+    mapping(address => uint256) private _recoveryTimelock;
 
     constructor(uint256 lock) {
         timeLock = lock;
@@ -33,10 +35,6 @@ contract RecoveryModule is IRecoveryModule, Guard {
 
     /// @inheritdoc IRecoveryModule
     function addRecovery(address recoveryAddress, uint40 recoveryDate, RecoveryType recoveryType) external payable {
-        if (msg.value != _subscriptionAmount) {
-            revert InvalidPayment(_subscriptionAmount);
-        }
-
         if (recoveryAddress == address(0)) {
             revert InvalidRecoveryAddress();
         }
@@ -45,20 +43,25 @@ contract RecoveryModule is IRecoveryModule, Guard {
             recoveryAddress: recoveryAddress,
             recoveryDate: recoveryDate,
             recoveryType: recoveryType,
-            lastActivity: uint40(block.timestamp)
+            lastActivity: uint40(block.timestamp),
+            recoveryValue: getRecoveryValue(msg.sender) + msg.value // new amount is previous + this
         });
 
         emit RecoveryAddressAdded(msg.sender, recoveryAddress, recoveryDate, recoveryType);
     }
 
+    /// @inheritdoc IRecoveryModule
     function clearRecovery() external {
+        uint256 amount = getRecoveryValue(msg.sender);
         _clearRecovery(msg.sender);
+        msg.sender.safeTransferETH(amount);
+        emit EtherTransferred(msg.sender);
     }
 
     /// @inheritdoc IRecoveryModule
     function initiateTransferOwnership(address safe) external {
         // This is done to prevent somebody from extending timeLockExpiration value
-        if (_recovery[safe] != 0) {
+        if (_recoveryTimelock[safe] != 0) {
             revert TransferOwnershipAlreadyInitiated();
         }
 
@@ -74,7 +77,7 @@ contract RecoveryModule is IRecoveryModule, Guard {
 
         uint256 timeLockExpiration = block.timestamp + timeLock;
 
-        _recovery[safe] = timeLockExpiration;
+        _recoveryTimelock[safe] = timeLockExpiration;
         emit TransferOwnershipInitiated(safe, timeLockExpiration);
     }
 
@@ -90,10 +93,6 @@ contract RecoveryModule is IRecoveryModule, Guard {
         if (block.timestamp < getTimelockExpiration(safeAddress)) {
             revert TooEarly();
         }
-        
-        // Clear recovery data
-        _clearRecovery(safeAddress);
-        delete _recovery[safeAddress];
 
         GnosisSafe safe = GnosisSafe(payable(safeAddress));
         address[] memory owners = safe.getOwners();
@@ -127,13 +126,14 @@ contract RecoveryModule is IRecoveryModule, Guard {
             }
         }
 
-        emit TransferOwnershipFinalized(safeAddress);
-    }
+        uint256 amount = getRecoveryValue(safeAddress);
 
-    /// @inheritdoc IRecoveryModule
-    function cancelTransferOwnership() external {
-        delete _recovery[msg.sender];
-        emit TransferOwnershipCanceled(msg.sender);
+        // Clear recovery data
+        _clearRecovery(safeAddress);
+
+        msg.sender.safeTransferETH(amount);
+
+        emit TransferOwnershipFinalized(safeAddress);
     }
 
     function checkTransaction(
@@ -159,7 +159,8 @@ contract RecoveryModule is IRecoveryModule, Guard {
     }
 
     function _clearRecovery(address safe) internal {
-        delete _recovery[safe];
+        delete _recoveryTimelock[safe];
+        delete _recoveryData[safe];
         emit RecoveryDataCleared(safe);
     }
 
@@ -167,7 +168,7 @@ contract RecoveryModule is IRecoveryModule, Guard {
 
     /// @inheritdoc IRecoveryModule
     function getTimelockExpiration(address safe) public view returns (uint256) {
-        return _recovery[safe];
+        return _recoveryTimelock[safe];
     }
 
     /// @inheritdoc IRecoveryModule
@@ -190,8 +191,9 @@ contract RecoveryModule is IRecoveryModule, Guard {
         return _recoveryData[safe].lastActivity;
     }
 
-    function getSubscriptionAmount() external view returns (uint256) {
-        return _subscriptionAmount;
+    /// @inheritdoc IRecoveryModule
+    function getRecoveryValue(address safe) public view returns (uint256) {
+        return _recoveryData[safe].recoveryValue;
     }
 
     function _ensureSafeIsInactive(address safe) private view {

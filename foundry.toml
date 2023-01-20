@@ -14,3 +14,6 @@ extra_output = ["abi"]
 
 [etherscan]
 goerli = { key = "${ETHERSCAN_API_KEY}" }
+
+[fuzz]
+runs = 50000
